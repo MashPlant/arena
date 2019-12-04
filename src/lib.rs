@@ -15,7 +15,8 @@ use alloc::{alloc::{alloc, dealloc, Layout}, vec::Vec};
 use std::alloc::{alloc, dealloc, Layout};
 
 use core::mem;
-use core::ptr::Unique;
+use core::ptr::{self, Unique};
+use core::slice;
 use core::cell::UnsafeCell;
 
 /// An arena of objects of type `T`.
@@ -45,16 +46,11 @@ struct ArenaInner<T> {
 }
 
 impl<T> Arena<T> {
-  /// It is equal to `max(4096 / mem::size_of::<T>(), 1)`
-  ///
-  /// Each allocation inside `Arena<T>` allocates `Arena::<T>::CAP * mem::size_of::<T>()` bytes,
-  /// it is easy to prove that this multiplication never overflows.
-  pub const CAP: usize = [4096 / mem::size_of::<T>(), 1][(4096 / mem::size_of::<T>() < 1) as usize];
-
   /// Construct a new arena.
   #[inline]
   pub fn new() -> Self {
-    unsafe { Self(UnsafeCell::new(ArenaInner { cur: (Self::alloc_chunk(), 0), rest: Vec::new() })) }
+    assert_ne!(mem::size_of::<T>(), 0);
+    unsafe { Self(UnsafeCell::new(ArenaInner { cur: (Self::alloc_chunk(0), 0), rest: Vec::new() })) }
   }
 
   /// Allocates a value in the arena, and returns a mutable reference to it.
@@ -65,8 +61,8 @@ impl<T> Arena<T> {
   pub fn alloc(&self, t: T) -> &mut T {
     unsafe {
       let a = &mut *self.0.get();
-      if a.cur.1 == Self::CAP {
-        let old = mem::replace(&mut a.cur.0, Self::alloc_chunk());
+      if a.cur.1 == 1 << a.rest.len() {
+        let old = mem::replace(&mut a.cur.0, Self::alloc_chunk(a.rest.len() as u32 + 1));
         a.rest.push(old);
         a.cur.1 = 0;
       }
@@ -78,9 +74,10 @@ impl<T> Arena<T> {
   }
 
   #[inline]
-  unsafe fn alloc_chunk() -> Unique<T> {
+  unsafe fn alloc_chunk(level: u32) -> Unique<T> {
     let (size, align) = (mem::size_of::<T>(), mem::align_of::<T>());
-    Unique::new_unchecked(alloc(Layout::from_size_align_unchecked(size * Self::CAP, align)) as _)
+    let cap = size.checked_shl(level).expect("capacity overflow");
+    Unique::new_unchecked(alloc(Layout::from_size_align_unchecked(cap, align)) as _)
   }
 }
 
@@ -94,16 +91,14 @@ unsafe impl<#[may_dangle] T> Drop for Arena<T> {
     unsafe {
       let a = &mut *self.0.get();
       let (size, align) = (mem::size_of::<T>(), mem::align_of::<T>());
-      for p in &a.rest {
-        for i in 0..Self::CAP {
-          p.as_ptr().add(i).drop_in_place();
-        }
-        dealloc(p.as_ptr() as _, Layout::from_size_align_unchecked(size * Self::CAP, align));
+      for (idx, p) in a.rest.iter().enumerate() {
+        let cap = 1 << idx;
+        ptr::drop_in_place(slice::from_raw_parts_mut(p.as_ptr(), cap) as _);
+        dealloc(p.as_ptr() as _, Layout::from_size_align_unchecked(cap, align));
       }
-      for i in 0..a.cur.1 {
-        a.cur.0.as_ptr().add(i).drop_in_place();
-      }
-      dealloc(a.cur.0.as_ptr() as _, Layout::from_size_align_unchecked(size * a.cur.1, align));
+      let p = a.cur.0.as_ptr();
+      ptr::drop_in_place(slice::from_raw_parts_mut(p, a.cur.1) as _);
+      dealloc(p as _, Layout::from_size_align_unchecked(size * (1 << a.rest.len()), align));
     }
   }
 }

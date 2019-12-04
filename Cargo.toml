@@ -11,5 +11,11 @@ no_std = []
 
 [dependencies]
 
+[[bench]]
+name = "bench"
+path = "benches/bench.rs"
+harness = false
+
 [dev-dependencies]
-criterion = "0.3.0"
+criterion = "*"
+typed-arena = "*"
