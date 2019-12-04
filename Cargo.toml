@@ -1,0 +1,15 @@
+[package]
+name = "arena"
+version = "0.1.0"
+authors = ["MashPlant <740678788@qq.com>"]
+edition = "2018"
+categories = ["memory-management", "no-std"]
+keywords = ["arena"]
+
+[features]
+no_std = []
+
+[dependencies]
+
+[dev-dependencies]
+criterion = "0.3.0"
