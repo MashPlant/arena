@@ -33,21 +33,10 @@ use core::cell::UnsafeCell;
 /// let x = a.alloc(10);
 /// assert_eq!(*x, 10);
 /// ```
-/// 
-/// As is mentioned above, creating an arena of ZST is illegal.
-/// 
-/// The following code is trying to create an arena of type `()`, so it won't compile:
-/// 
-/// ```compile_fail
-/// fn main() {
-///   let a = Arena::new();
-///   let _x = a.alloc(());
-/// }
-/// ```
 ///
-/// **Note:** It seems that rustc doesn't always treat it as a compilation error.
-/// For example, I have to add a `main` to wrap the code to show that it will be actually used
-/// in order to ensure a compilation error.
+/// **Note:** It seems that rustc doesn't always report compilation error for an arena of ZST.
+/// For example, if I specify such code block as `compile_fail` in doc test, the test will fail
+/// because it successfully compiles. Anyway, you can never actually uses such an arena.
 pub struct Arena<T>(UnsafeCell<ArenaInner<T>>);
 
 struct ArenaInner<T> {
