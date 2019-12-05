@@ -13,9 +13,9 @@ struct Medium([usize; 4]);
 struct Big([usize; 32]);
 
 macro_rules! mk_alloc {
-  ($name: ident, $arena: ident) => {
+  ($name: ident, $arena: expr) => {
     fn $name<T: Default>(n: usize) {
-        let arena = $arena::Arena::new();
+        let arena = $arena;
         for _ in 0..n {
           let val = arena.alloc(T::default());
           criterion::black_box(val);
@@ -24,8 +24,9 @@ macro_rules! mk_alloc {
   };
 }
 
-mk_alloc!(arena, arena);
-mk_alloc!(rust_typed_arena, typed_arena);
+mk_alloc!(simple, arena::SimpleArena::new());
+mk_alloc!(arena, arena::Arena::new());
+mk_alloc!(rust_typed_arena, typed_arena::Arena::new());
 
 fn criterion_benchmark(c: &mut Criterion) {
   macro_rules! mk_bench {
@@ -33,6 +34,7 @@ fn criterion_benchmark(c: &mut Criterion) {
       let mut group = c.benchmark_group($name);
       for n in (1..6).map(|n| n * 2000) {
         group.throughput(Throughput::Elements(n as u64));
+        group.bench_with_input(BenchmarkId::new("simple", n), &n, |b, &i| b.iter(|| simple::<$elem>(i)));
         group.bench_with_input(BenchmarkId::new("arena", n), &n, |b, &i| b.iter(|| arena::<$elem>(i)));
         group.bench_with_input(BenchmarkId::new("rust-typed-arena", n), &n, |b, &i| b.iter(|| rust_typed_arena::<$elem>(i)));
       }

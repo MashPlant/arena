@@ -5,7 +5,7 @@ Allocated objects are destroyed all at once, when the arena itself is destroyed.
 
 ## Example
 
-```
+```rust
 use arena::Arena;
 let a = Arena::new();
 let x = a.alloc(10);
@@ -16,7 +16,7 @@ assert_eq!(*x, 10);
 
 All allocated objects get the same lifetime, so you can safely create cycles between them. This can be useful for certain data structures.
 
-```
+```rust
 use std::cell::Cell;
 use arena::Arena;
 
